@@ -1,7 +1,7 @@
 .PHONY: all clean pc
 all:
-	arm-linux-gcc main.c -o sdltest -ggdb -lSDL
+	arm-linux-gcc main.c -o calc -ggdb -lSDL -lSDL_ttf
 pc:
-	gcc main.c -o sdltestpc -lSDL
+	gcc main.c -o calc -lSDL -lSDL_ttf
 clean:
-	rm -rf sdltest sdltestpc
+	rm -rf calc
