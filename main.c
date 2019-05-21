@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -17,11 +18,12 @@
 
 #define XSTR(S)				#S
 #define STR(S)				XSTR(S)
+
 #define BUTTONS_XNUM		6
 #define BUTTONS_YNUM		4
 #define LABEL_MAXCHARS		5
-#define DISPLAY_MAXCHARS	16
-#define DISPLAY_PRECISION	10
+#define DISPLAY_MAXCHARS	32
+#define DISPLAY_PRECISION	22
 #define DISPLAY_BORDER		5
 
 const char labels[BUTTONS_YNUM][BUTTONS_XNUM][LABEL_MAXCHARS] =
@@ -42,10 +44,21 @@ struct
 {
 	char string[DISPLAY_MAXCHARS + 1];
 	bool negative;
-} display = {.string = "1234", .negative = false};
+} display = {.string = "0", .negative = false};
 
-double memory_result = 1.0;
-double main_result = 123.0;
+enum
+{
+	OP_NULL,
+	OP_PLUS,
+	OP_MINUS,
+	OP_MULTIPLY,
+	OP_DIVIDE
+} operation = OP_NULL;
+
+double left_operand = 0.0;
+double right_operand = 0.0;
+double memory_result = 0.0;
+bool new_entry = false;
 
 TTF_Font *font = NULL;
 SDL_Surface *screen = NULL;
@@ -54,9 +67,12 @@ SDL_Surface *minus_sign = NULL;
 SDL_Surface *m_symbol = NULL;
 
 void draw_ui(void);
-void append_character(char *string, int c);
+void append_character(int c);
 double signum(bool neg);
 void show_number(double n);
+double display_operand(void);
+void do_operation(void);
+void clear_display(void);
 
 int main(int argc, char* args[])
 {
@@ -129,110 +145,170 @@ int main(int argc, char* args[])
 						case SDLK_LCTRL:	// A
 							if (0 == indpos.x)
 							{
-								if (0 == indpos.y)
+								if (0 == indpos.y)		// MC
 								{
 									memory_result = 0.0;
 								}
-								else if (1 == indpos.y)
+								else if (1 == indpos.y)		// MR
 								{
 									show_number(memory_result);
+									new_entry = false;
 								}
-								else if (2 == indpos.y)
+								else if (2 == indpos.y)		// M+
 								{
-									memory_result += signum(display.negative) * atof(display.string);
+									memory_result += display_operand();
 								}
-								else if (3 == indpos.y)
+								else if (3 == indpos.y)		// M-
 								{
-									memory_result -= signum(display.negative) * atof(display.string);
+									memory_result -= display_operand();
 								}
 							}
 							else if (1 == indpos.x)
 							{
-								if (0 == indpos.y)
+								if (0 == indpos.y)		// 7
 								{
-									append_character(display.string, '7');
+									append_character('7');
 								}
-								else if (1 == indpos.y)
+								else if (1 == indpos.y)		// 4
 								{
-									append_character(display.string, '4');
+									append_character('4');
 								}
-								else if (2 == indpos.y)
+								else if (2 == indpos.y)		// 1
 								{
-									append_character(display.string, '1');
+									append_character('1');
 								}
-								else if (3 == indpos.y)
+								else if (3 == indpos.y)		// 0
 								{
-									append_character(display.string, '0');
+									append_character('0');
 								}
 							}
 							else if (2 == indpos.x)
 							{
-								if (0 == indpos.y)
+								if (0 == indpos.y)		// 8
 								{
-									append_character(display.string, '8');
+									append_character('8');
 								}
-								else if (1 == indpos.y)
+								else if (1 == indpos.y)		// 5
 								{
-									append_character(display.string, '5');
+									append_character('5');
 								}
-								else if (2 == indpos.y)
+								else if (2 == indpos.y)		// 2
 								{
-									append_character(display.string, '2');
+									append_character('2');
 								}
-								else if (3 == indpos.y)
+								else if (3 == indpos.y)		// .
 								{
-									append_character(display.string, '.');
+									append_character('.');
 								}
 							}
 							else if (3 == indpos.x)
 							{
-								if (0 == indpos.y)
+								if (0 == indpos.y)		// 9
 								{
-									append_character(display.string, '9');
+									append_character('9');
 								}
-								else if (1 == indpos.y)
+								else if (1 == indpos.y)		// 6
 								{
-									append_character(display.string, '6');
+									append_character('6');
 								}
-								else if (2 == indpos.y)
+								else if (2 == indpos.y)		// 3
 								{
-									append_character(display.string, '3');
+									append_character('3');
 								}
-								else if (3 == indpos.y)
+								else if (3 == indpos.y)		// +/-
 								{
 									display.negative = !display.negative;
 								}
 							}
 							else if (4 == indpos.x)
 							{
-								if (0 == indpos.y)
+								if (0 == indpos.y)		// /
 								{
+									if (!new_entry)
+									{
+										right_operand = display_operand();
+										do_operation();
+									}
+									left_operand = display_operand();
+									operation = OP_DIVIDE;
+									new_entry = true;
 								}
-								else if (1 == indpos.y)
+								else if (1 == indpos.y)		// *
 								{
+									if (!new_entry)
+									{
+										right_operand = display_operand();
+										do_operation();
+									}
+									left_operand = display_operand();
+									operation = OP_MULTIPLY;
+									new_entry = true;
 								}
-								else if (2 == indpos.y)
+								else if (2 == indpos.y)		// -
 								{
+									if (!new_entry)
+									{
+										right_operand = display_operand();
+										do_operation();
+									}
+									left_operand = display_operand();
+									operation = OP_MINUS;
+									new_entry = true;
 								}
-								else if (3 == indpos.y)
+								else if (3 == indpos.y)		// +
 								{
+									if (!new_entry)
+									{
+										right_operand = display_operand();
+										do_operation();
+									}
+									left_operand = display_operand();
+									operation = OP_PLUS;
+									new_entry = true;
 								}
 							}
 							else if (5 == indpos.x)
 							{
-								if (0 == indpos.y)
+								if (0 == indpos.y)		// sqrt
 								{
+									show_number(sqrt(display_operand()));
+									new_entry = true;
 								}
-								else if (1 == indpos.y)
+								else if (1 == indpos.y)		// %
 								{
+									if (!new_entry)
+									{
+										right_operand = display_operand();
+										switch (operation)
+										{
+											case OP_NULL:
+												break;
+											case OP_PLUS:
+											case OP_MINUS:
+												right_operand *= left_operand / 100.;
+												break;
+											case OP_MULTIPLY:
+											case OP_DIVIDE:
+												right_operand /= 100.;
+												break;
+										}
+									}
+									do_operation();
+									left_operand = display_operand();
+									new_entry = true;
 								}
-								else if (2 == indpos.y)
+								else if (2 == indpos.y)		// C
 								{
-									display.string[0] = '0';
-									display.string[1] = '\0';
+									clear_display();
+									operation = OP_NULL;
 								}
-								else if (3 == indpos.y)
+								else if (3 == indpos.y)		// =
 								{
+									if (!new_entry)
+										right_operand = display_operand();
+									do_operation();
+									left_operand = display_operand();
+									new_entry = true;
 								}
 							}
 							break;
@@ -336,11 +412,18 @@ void draw_ui(void)
 	SDL_FreeSurface(disp);
 }
 
-void append_character(char *string, int c)
+void append_character(int c)
 {
-	bool dot = false;
-	if (strlen(string) >= DISPLAY_MAXCHARS)
+	if (new_entry)
+	{
+		clear_display();
+	}
+	
+	if (strlen(display.string) >= DISPLAY_MAXCHARS)
 		return;
+	
+	bool dot = false;
+	char *string = display.string;
 	if ('0' != string[0])	// leading zero check
 	{
 		while (*string)
@@ -363,18 +446,48 @@ double signum(bool neg)
 
 void show_number(double n)
 {
-	// !!! dependency on string size
-	sprintf(display.string, "%." STR(DISPLAY_PRECISION) "g", memory_result);
-	char *str = display.string;
-	display.negative = false;
-	while (*str)
+	sprintf(display.string, "%." STR(DISPLAY_PRECISION) "g", n);
+	if ('-' == display.string[0])
 	{
-		if ('-' == *str)
-		{
-			*str = ' ';
-			display.negative = true;
-			break;
-		}
-		++str;
+		display.string[0] = ' ';
+		display.negative = true;
 	}
+	else
+		display.negative = false;
+}
+
+double display_operand(void)
+{
+	return signum(display.negative) * atof(display.string);
+}
+
+void do_operation(void)
+{
+	switch (operation)
+	{
+		case OP_NULL:
+			break;
+		case OP_PLUS:
+			show_number(left_operand + right_operand);
+			break;
+		case OP_MINUS:
+			show_number(left_operand - right_operand);
+			break;
+		case OP_DIVIDE:
+			show_number(left_operand / right_operand);
+			break;
+		case OP_MULTIPLY:
+			show_number(left_operand * right_operand);
+			break;
+		default:
+			strcpy(display.string, "Error.");
+	}
+}
+
+void clear_display(void)
+{
+	display.string[0] = '0';
+	display.string[1] = '\0';
+	new_entry = false;
+	display.negative = false;
 }
