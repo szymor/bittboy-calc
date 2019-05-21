@@ -15,10 +15,13 @@
 #include <SDL/SDL_image.h>
 #include <SDL/SDL_ttf.h>
 
+#define XSTR(S)				#S
+#define STR(S)				XSTR(S)
 #define BUTTONS_XNUM		6
 #define BUTTONS_YNUM		4
 #define LABEL_MAXCHARS		5
 #define DISPLAY_MAXCHARS	16
+#define DISPLAY_PRECISION	10
 #define DISPLAY_BORDER		5
 
 const char labels[BUTTONS_YNUM][BUTTONS_XNUM][LABEL_MAXCHARS] =
@@ -38,16 +41,22 @@ struct
 struct
 {
 	char string[DISPLAY_MAXCHARS + 1];
-	bool positive;
-} display = {.string = "1234", .positive = true};
+	bool negative;
+} display = {.string = "1234", .negative = false};
+
+double memory_result = 1.0;
+double main_result = 123.0;
 
 TTF_Font *font = NULL;
 SDL_Surface *screen = NULL;
 SDL_Surface *rlabels[BUTTONS_YNUM][BUTTONS_XNUM];
 SDL_Surface *minus_sign = NULL;
+SDL_Surface *m_symbol = NULL;
 
 void draw_ui(void);
 void append_character(char *string, int c);
+double signum(bool neg);
+void show_number(double n);
 
 int main(int argc, char* args[])
 {
@@ -81,6 +90,7 @@ int main(int argc, char* args[])
 		
 	fgc.r = fgc.g = fgc.b = 0;
 	minus_sign = TTF_RenderText_Blended(font, "-", fgc);
+	m_symbol = TTF_RenderText_Blended(font, "M", fgc);
 	
 	SDL_ShowCursor(0);
 	draw_ui();
@@ -121,15 +131,19 @@ int main(int argc, char* args[])
 							{
 								if (0 == indpos.y)
 								{
+									memory_result = 0.0;
 								}
 								else if (1 == indpos.y)
 								{
+									show_number(memory_result);
 								}
 								else if (2 == indpos.y)
 								{
+									memory_result += signum(display.negative) * atof(display.string);
 								}
 								else if (3 == indpos.y)
 								{
+									memory_result -= signum(display.negative) * atof(display.string);
 								}
 							}
 							else if (1 == indpos.x)
@@ -186,7 +200,7 @@ int main(int argc, char* args[])
 								}
 								else if (3 == indpos.y)
 								{
-									display.positive = !display.positive;
+									display.negative = !display.negative;
 								}
 							}
 							else if (4 == indpos.x)
@@ -251,6 +265,7 @@ int main(int argc, char* args[])
 	}
 	
 	SDL_FreeSurface(minus_sign);
+	SDL_FreeSurface(m_symbol);
 	for (int y = 0; y < BUTTONS_YNUM; ++y)
 		for (int x = 0; x < BUTTONS_XNUM; ++x)
 		{
@@ -286,10 +301,17 @@ void draw_ui(void)
 	rect.y += (rect.h - disp->h) / 2;
 	SDL_BlitSurface(disp, NULL, screen, &rect);
 	
-	if (!display.positive)
+	if (display.negative)
 	{
 		rect.x = 16 + DISPLAY_BORDER + 8;
 		SDL_BlitSurface(minus_sign, NULL, screen, &rect);
+	}
+	
+	if (memory_result != 0.0)
+	{
+		rect.x = 16 + DISPLAY_BORDER + 8;
+		rect.y -= 3 * minus_sign->h / 4;
+		SDL_BlitSurface(m_symbol, NULL, screen, &rect);
 	}
 
 	for (int x = 0; x < BUTTONS_XNUM; ++x)
@@ -332,4 +354,27 @@ void append_character(char *string, int c)
 		return;
 	*string = c;
 	*(string + 1) = '\0';
+}
+
+double signum(bool neg)
+{
+	return neg ? -1. : 1.;
+}
+
+void show_number(double n)
+{
+	// !!! dependency on string size
+	sprintf(display.string, "%." STR(DISPLAY_PRECISION) "g", memory_result);
+	char *str = display.string;
+	display.negative = false;
+	while (*str)
+	{
+		if ('-' == *str)
+		{
+			*str = ' ';
+			display.negative = true;
+			break;
+		}
+		++str;
+	}
 }
