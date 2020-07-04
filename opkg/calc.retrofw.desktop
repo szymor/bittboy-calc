@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Calculator
+Comment=Simple calculator
+Exec=calc
+Terminal=false
+Type=Application
+StartupNotify=true
+Icon=icon
+Categories=applications;
+Version=20200704
