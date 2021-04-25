@@ -1,5 +1,7 @@
 ## Calculator for Bittboy (and other handhelds)
 
+![screenshot](screenshot.png)
+
 ### Description
 A simple calculator made for Bittboy in mind. It supports elementary arithmetic operations, nothing fancy.
 
